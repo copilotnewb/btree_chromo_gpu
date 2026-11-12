@@ -279,6 +279,31 @@ void binding_region::update_proximities(double r_g, vec a_coord, std::vector<vec
 }
 
 
+// A bound hinge can inspect at most ext_max consecutive monomers.  Avoid
+// evaluating every monomer in the region when no inter-region move is needed.
+void binding_region::update_intra_proximities(int ext_max, int h_mono_pos, int dir,
+                                              double r_g, vec a_coord,
+                                              std::vector<vec> &coords)
+{
+  const double r_g_2 = pow(r_g,2.0);
+  int prev_mono_pos = h_mono_pos;
+  for (int i=1; i<(ext_max+1); i++)
+    {
+      const int i_mono_pos = get_relative_monomer_pos(h_mono_pos,i,dir);
+      // A linear endpoint repeats its last monomer; a circle reaches the
+      // original hinge.  Both stop the existing candidate selection routine.
+      if ((i_mono_pos == prev_mono_pos) || (i_mono_pos == h_mono_pos)) break;
+      const int i_reg_pos = get_reg_pos(i_mono_pos);
+      const double test_dist_L2 =
+          vqm.v_L2(vqm.v_xpy(a_coord,vqm.v_inv(coords[i_mono_pos])));
+      proximities[i_reg_pos] = (test_dist_L2 < r_g_2) ? 1 : 0;
+      // The candidate path stops at the first monomer outside the grab radius.
+      if (proximities[i_reg_pos] == 0) break;
+      prev_mono_pos = i_mono_pos;
+    }
+}
+
+
 // filter the proximites too close to the anchor
 void binding_region::filter_proximities_near_a(int min_dist, int a_mono_pos)
 {

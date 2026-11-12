@@ -13,8 +13,10 @@
 # **************************************************************
 #
 
-CXX      := -g++
-CXXFLAGS := -pedantic-errors -Wall -Wextra -Werror
+CXX      ?= g++
+# Optimize ordinary builds as well as `make release`.  No fast-math flags:
+# candidate cutoffs and stochastic decisions retain their floating-point rules.
+CXXFLAGS := -std=c++17 -O2 -pedantic-errors -Wall -Wextra -Werror
 
 GCC_LIB := /usr/local/Compilers/GCC/12.1.0/lib
 OpenMPI_LIB := /usr/local/Libraries/OpenMPI/4.1.4/lib
@@ -75,7 +77,7 @@ build:
 	@mkdir -p $(APP_DIR)
 	@mkdir -p $(OBJ_DIR)
 
-debug: CXXFLAGS += -DDEBUG -g -ggdb3
+debug: CXXFLAGS += -O0 -DDEBUG -g -ggdb3
 debug: all
 
 release: CXXFLAGS += -O2
