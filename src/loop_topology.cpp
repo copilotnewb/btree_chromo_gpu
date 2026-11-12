@@ -354,7 +354,7 @@ void loop_topology::update_loops(int ext_max, int min_dist, double p_unbinding, 
 	  // update the proximities in the hinge region
 	  // std::cout << "h_reg = " << h_reg << std::endl;
 	  // regions[h_reg].print_region_map();
-	  regions[h_reg].update_proximities(r_g,a_coord,coords);
+	  regions[h_reg].update_intra_proximities(ext_max,h_mono,d,r_g,a_coord,coords);
 
 	  if (a_reg == h_reg) regions[h_reg].filter_proximities_near_a(min_dist,a_mono);
 	  
@@ -389,16 +389,21 @@ void loop_topology::update_loops(int ext_max, int min_dist, double p_unbinding, 
 	      // determine the candidate inter-strand hinge updates for all the regions
 	      for (size_t i_reg=0; i_reg<regions.size(); i_reg++)
 		{
-		  // update proximities not in the hinge region
-		  if (i_reg != h_reg)
-		    {
-		      regions[i_reg].update_proximities(r_g,a_coord,coords);
-		    }
+		  // A bound move populated only its short forward path.  An
+		  // inter-region move needs fresh proximities for every region.
+		  regions[i_reg].update_proximities(r_g,a_coord,coords);
 
 		  // filter proximities violating minimum distance within anchor region
 		  if (i_reg == a_reg)
 		    {
 		      regions[i_reg].filter_proximities_near_a(min_dist,a_mono);
+		    }
+
+		  // Preserve the original exclusion of intra-strand candidates
+		  // from the hinge region's inter-strand candidate list.
+		  if (i_reg == h_reg)
+		    {
+		      regions[i_reg].get_and_filter_intra_candidates(ext_max,h_mono,d);
 		    }
 
 		  // add the region's candidates to the total set of possible inter updates

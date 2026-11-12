@@ -42,6 +42,10 @@ public:
   int select_direction(int mono_pos, int min_dist, double r_d);
 
   void update_proximities(double r_g, vec a_coord, std::vector<vec> &coords);
+  // Populate only the forward path inspected by get_and_filter_intra_candidates.
+  // Call update_proximities before an inter-region search: other entries may be stale.
+  void update_intra_proximities(int ext_max, int h_mono_pos, int dir,
+                               double r_g, vec a_coord, std::vector<vec> &coords);
   void filter_proximities_near_a(int min_dist, int a_mono_pos);
   std::vector<int> get_and_filter_intra_candidates(int ext_max, int h_mono_pos, int dir);
   std::vector<int> get_inter_candidates();

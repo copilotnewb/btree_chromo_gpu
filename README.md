@@ -71,6 +71,88 @@ All dependencies can be installed within a conda virtual environment with the An
 
 The executable (**btree_chromo**) will be in `build/apps`.
 
+### Rebuilding the optimized fork
+
+Ordinary `make all` and `make release` builds now use `-O2` and C++17.
+`make debug` appends `-O0` and debugging symbols. No fast-math options are added.
+The upstream repository contains compiled binaries, objects, and dependency
+files from another machine, so clean them before the first local build and when
+switching between release and debug builds:
+
+```sh
+make clean
+make release
+```
+
+Set the MPI, fmt, and LAMMPS library/include paths in the Makefile to match the
+local installation before building. The pre-existing executable in
+`build/apps` does not contain source changes until it is rebuilt.
+
+### CPU loop-search optimization and validation
+
+For a bound loop hinge, `loop_topology::update_loops` previously evaluated the
+distance to every monomer in its binding region before selecting at most
+`ext_max` consecutive candidate steps. It now evaluates only that candidate
+path, stopping at the same geometric or strand boundary. Candidate order,
+strict grab-radius comparison, anchor exclusion, and random-number draws are
+preserved. When a hinge attempts an inter-region move, all relevant
+proximities are refreshed before the existing full candidate search runs.
+
+For the whole-cell model's `ext_max=30` and `p_unbinding=0.0`, a 54,338-monomer
+region therefore requires at most 30 distance evaluations per bound hinge
+instead of 54,338. This is a CPU optimization; it does not change Kokkos GPU
+allocations, neighbor settings, forces, Brownian timesteps, or loop parameters.
+
+Run the CPU regression suite without installing LAMMPS or CUDA:
+
+```sh
+python3 tests/run_cpu_tests.py
+python3 tests/run_cpu_tests.py --benchmark
+```
+
+The suite checks the distance-evaluation bound, hand-checked boundary/cutoff
+cases, 18,000 randomized comparisons against the original full scan, and
+38,416 complete loop states against the pre-change implementation in git
+commit `fbc6f01b10a2c169e439c541f71e5b2a413fd0c9`. The trajectory driver covers
+closed, open, multiple, and fork-partitioned regions, fixed seeds, repeated
+bound movement, and forced-unbinding updates. A source archive without git
+history can run the first two checks with `--skip-legacy`. The operation-count
+test uses the GNU linker `--wrap` option, as supported by this Linux build.
+
+For memory and undefined-behavior checks:
+
+```sh
+TEST_CXXFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' \
+  python3 tests/run_cpu_tests.py
+```
+
+The benchmark reports timings for the CPU candidate-search routine only.
+Measure complete DNA updates and the coupled whole-cell simulation separately
+on the target GPU; its result is not an end-to-end speedup estimate.
+
+### Selecting a single GPU
+
+`LAMMPS_simulator::LAMMPS_initialize` requests Kokkos with one GPU (`-k on g 1`)
+and the `kk` suffix. For a standalone invocation on a workstation with a single
+unmasked GPU:
+
+```sh
+CUDA_VISIBLE_DEVICES=0 ./build/apps/btree_chromo /path/to/directives.inp
+```
+
+If a scheduler or container already sets `CUDA_VISIBLE_DEVICES`, retain that
+allocation. CUDA renumbers the visible devices from zero, so a process with
+only one visible GPU must use ordinal zero inside that process regardless of
+the GPU's physical index. See the [NVIDIA CUDA environment-variable
+documentation](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html).
+Start with one MPI rank for this one-GPU use case, consistent with the
+[LAMMPS Kokkos guidance](https://docs.lammps.org/stable/Speed_kokkos.html).
+
+The whole-cell Python driver can launch this executable while its lattice
+solver remains resident on the same GPU. Device selection alone does not
+remove that overlap: budget the combined peak memory of both processes and
+measure it on the target system.
+
 ## Usage
 
 ### Getting Started
